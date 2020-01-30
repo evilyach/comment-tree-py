@@ -20,24 +20,16 @@ class CommentTree:
         Attributes:
             filename (str): Name of a JSON file.
             json_data (dict): A JSON file represented in a Python dictionary.
-            bodies (list): List of bodies lists [id, body].
         '''
 
         self.filename = filename
         self.json_data = self.get_json_data(self.filename)
-
-        self.bodies = []
-        self.get_comment_bodies(self.json_data)
-
-    def __repr__(self):
-        ''' Returns representation of a Comment Tree '''
-
-        return json.dumps(self.json_data)
+        self.add_comments(self.json_data)
 
     def __str__(self):
         ''' Returns string representation of a Comment Tree '''
 
-        return json.dumps(self.json_data)
+        return json.dumps(self.json_data, indent=4)
 
     def get_json_data(self, filename):
         '''
@@ -79,7 +71,7 @@ class CommentTree:
             print(f"No input data was provided! Check '{sys.argv[0]} --help'")
             return None
 
-    def get_comment_bodies(self, data):
+    def add_comments(self, data):
         '''
         Get a list of comment bodies.
 
@@ -90,14 +82,15 @@ class CommentTree:
             data (dict): A JSON represented in a Python dictionary.
         '''
 
-        for key, value in data.items():
-            if key == 'replies':
-                for element in value:
-                    self.get_comment_bodies(element)
+        for key, value in data.copy().items():
             if key == 'id':
                 req = requests.get(
                     f'https://jsonplaceholder.typicode.com/posts/{value}')
-                self.bodies.append([value, req.json()['body']])
+                data['body'] = req.json()['body']
+
+            if key == 'replies':
+                for element in value:
+                    self.add_comments(element)
 
 
 def parse_args():
