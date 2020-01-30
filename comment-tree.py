@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 import select
+import requests
 
 
 def parse_args():
@@ -63,12 +64,33 @@ def get_json_data(filename):
         return None
 
 
+def get_comment_bodies(data, bodies):
+    '''
+    Get a list of comment bodies.
+
+    Args:
+        data (dict): A JSON represented in a Python dictionary.
+        bodies (list): List of bodies lists [id, body].
+    '''
+    for key, value in data.items():
+        if key == 'replies':
+            for elem in value:
+                get_comment_bodies(elem, bodies)
+        if key == 'id':
+            req = requests.get(
+                f'https://jsonplaceholder.typicode.com/posts/{value}')
+            bodies.append([value, req.json()['body']])
+
+
 def main():
     args = parse_args()
 
     json_data = get_json_data(args.file)
     if not json_data:
         exit(-1)
+
+    bodies = []
+    get_comment_bodies(json_data, bodies)
 
 
 if __name__ == "__main__":
