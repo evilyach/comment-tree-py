@@ -4,7 +4,8 @@ import argparse
 import json
 import sys
 import select
-import requests
+import grequests
+import copy
 
 
 class CommentTree:
@@ -20,10 +21,12 @@ class CommentTree:
         Attributes:
             filename (str): Name of a JSON file.
             json_data (dict): A JSON file represented in a Python dictionary.
+            bodies (list): A list of comment bodies.
         '''
 
         self.filename = filename
         self.json_data = self.get_json_data(self.filename)
+        self.bodies = {}
         self.add_comments(self.json_data)
 
     def __str__(self):
@@ -71,9 +74,22 @@ class CommentTree:
             print(f"No input data was provided! Check '{sys.argv[0]} --help'")
             return None
 
+    def async_requests(self, urls):
+        '''
+        Send GET-requests to a list of URLs asynchronously.
+
+        Args:
+            urls (list): a list of URLs to send requests to.
+        '''
+
+        rs = (grequests.get(url) for url in urls)
+        requests = grequests.map(rs)
+        for response in requests:
+            self.bodies[response.json()['id']] = response.json()['body']
+
     def add_comments(self, data):
         '''
-        Get a list of comment bodies.
+        Add comment bodies to a JSON dict.
 
         It works by iterating through the JSON tree and retrieving data using
         JSON placeholder API.
@@ -82,11 +98,22 @@ class CommentTree:
             data (dict): A JSON represented in a Python dictionary.
         '''
 
+        urls = []
+
         for key, value in data.copy().items():
             if key == 'id':
-                req = requests.get(
+                urls.append(
                     f'https://jsonplaceholder.typicode.com/posts/{value}')
-                data['body'] = req.json()['body']
+
+            if key == 'replies':
+                for element in value:
+                    self.add_comments(element)
+
+        self.async_requests(urls)
+
+        for key, value in data.copy().items():
+            if key == 'id':
+                data['body'] = self.bodies[value]
 
             if key == 'replies':
                 for element in value:
@@ -106,6 +133,8 @@ def parse_args():
 
     parser.add_argument('--file', type=str,
                         help='input JSON filename')
+    parser.add_argument('--save', type=str,
+                        help='output JSON filename')
 
     return parser.parse_args()
 
@@ -116,7 +145,12 @@ def main():
     args = parse_args()
 
     comment_tree = CommentTree(args.file)
-    print(comment_tree)
+
+    if (args.save):
+        with open(args.save, "w+") as json_file:
+            json_file.write(str(comment_tree))
+    else:
+        print(comment_tree)
 
 
 if __name__ == "__main__":
