@@ -1,7 +1,7 @@
 # Comment Tree Py
 
 ## About
-[Comment Tree Py] CLI app to add comments to a JSON concurrently using jsonplaceholder.typicode.com API.
+**Comment Tree Py** CLI app to add comments to a JSON concurrently using jsonplaceholder.typicode.com API.
 
 ## Command Line Interface
 ### Install:
