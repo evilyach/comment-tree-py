@@ -62,6 +62,7 @@ class CommentTree:
                     print(f"Could not read any JSON data from '{filename}'!")
                     return None
 
+        # This select is the only way I found to check if stdin is empty or not
         elif select.select([sys.stdin, ], [], [], 0.0)[0]:
             try:
                 json_data = json.load(sys.stdin)
@@ -84,6 +85,7 @@ class CommentTree:
 
         rs = (grequests.get(url) for url in urls)
         requests = grequests.map(rs)
+
         for response in requests:
             self.bodies[response.json()['id']] = response.json()['body']
 
@@ -98,9 +100,11 @@ class CommentTree:
             data (dict): A JSON represented in a Python dictionary.
         '''
 
+        # A list of URLs to request from
         urls = []
 
-        for key, value in data.copy().items():
+        # The first run is to get the indeces for URLs
+        for key, value in data.items():
             if key == 'id':
                 urls.append(
                     f'https://jsonplaceholder.typicode.com/posts/{value}')
@@ -111,6 +115,7 @@ class CommentTree:
 
         self.async_requests(urls)
 
+        # The second run is to add comment bodies
         for key, value in data.copy().items():
             if key == 'id':
                 data['body'] = self.bodies[value]
