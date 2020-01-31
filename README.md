@@ -19,6 +19,46 @@ or via command line argument:
 $ ./comment-tree.py --file ./test/test.json
 ```
 
+### JSON generator:
+You can generate a random JSON file that fits the use of this program by using **json-generator**:
+```bash
+$ ./json/json-generator.py
+```
+It will generate very random JSON file or you can pipe the output directrly into **comment-tree**:
+```bash
+$ ./json/json-generator.py | ./comment-tree.py --save my-new-file.json
+```
+
+### Tests:
+**Warning**: you need to be in ./test directory!
+
+You can run all the tests by typing:
+```bash
+$ ./tests.py
+```
+
+You can run each of them individually:
+* **Test Original JSON**  
+You can run this test agains the original JSON given in a task.
+```bash
+$ ./tests.py CommentTreePyTest.test_original_json
+```
+* **Test Big JSON**  
+Big JSON is around 10000 lines long.
+```bash
+$ ./tests.py CommentTreePyTest.test_big_json
+```
+* **Test Random JSON**  
+Generate a random JSON and test the program with it.
+```bash
+$ ./tests.py CommentTreePyTest.test_random_json
+```
+* **Stress Test Original JSON**  
+Run the original test 100 times. Could be more, but don't want to try to DoS the service.
+```bash
+$ ./tests.py CommentTreePyTest.stress_test_original_json
+```
+
 ## Example
 For example, we have a test JSON file:
 ```json
