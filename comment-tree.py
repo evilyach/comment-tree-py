@@ -4,7 +4,8 @@ import argparse
 import json
 import sys
 import select
-import grequests
+import aiohttp
+import asyncio
 import copy
 
 
@@ -21,13 +22,16 @@ class CommentTree:
         Attributes:
             filename (str): Name of a JSON file.
             json_data (dict): A JSON file represented in a Python dictionary.
-            bodies (list): A list of comment bodies.
+            bodies (dict): A dictionary of comment bodies.
+            urls (list<str>): A list of URLs
         '''
 
         self.filename = filename
         self.json_data = self.get_json_data(self.filename)
         self.bodies = {}
-        self.add_comments(self.json_data)
+        self.urls = []
+
+        self.process(self.json_data)
 
     def __str__(self):
         ''' Returns string representation of a Comment Tree '''
@@ -75,21 +79,81 @@ class CommentTree:
             print(f"No input data was provided! Check '{sys.argv[0]} --help'")
             return None
 
-    def async_requests(self, urls):
+    def get_urls(self, data):
         '''
-        Send GET-requests to a list of URLs asynchronously.
+        Iterate through a JSON tree and get id values to form a URLs list.
 
         Args:
-            urls (list): a list of URLs to send requests to.
+            data (dict): a JSON tree to get id values from.
         '''
 
-        rs = (grequests.get(url) for url in urls)
-        requests = grequests.map(rs)
+        for key, value in data.items():
+            if key == 'id':
+                self.urls.append(
+                    f'https://jsonplaceholder.typicode.com/posts/{value}')
 
-        for response in requests:
-            self.bodies[response.json()['id']] = response.json()['body']
+            if key == 'replies':
+                for element in value:
+                    self.get_urls(element)
 
     def add_comments(self, data):
+        '''
+        Iterate through a JSON tree and put comment bodies into it.
+
+        Args:
+            data (dict): a JSON tree to put comment bodies into.
+        '''
+
+        for key, value in data.copy().items():
+            if key == 'id':
+                data['body'] = self.bodies[value]
+
+            if key == 'replies':
+                for element in value:
+                    self.add_comments(element)
+
+    async def fetch(self, url, session):
+        '''
+        Fetch data from URL inside a session.
+
+        This function only uses 'id' and 'body' fields.
+
+        Args:
+            url (str): a URL to fetch data from.
+            session (aiohttp.client.ClientSession): a client session.
+        '''
+        async with session.get(url) as response:
+            data = await response.json()
+            self.bodies[data['id']] = data['body']
+
+    async def bound_fetch(self, semaphore, url, session):
+        '''
+        Invokes a fetch guarded with a semaphore.
+
+        Args:
+            semaphore (asyncio.locks.Semaphore): a semaphore guard.
+            url (str): a URL to fetch data from.
+            session (aiohttp.client.ClientSession): a client session.
+        '''
+
+        async with semaphore:
+            await self.fetch(url, session)
+
+    async def run(self):
+        ''' Builds a session which invokes asyncronous calls to fetch data. '''
+
+        tasks = []
+        semaphore = asyncio.Semaphore(1000)
+
+        async with aiohttp.ClientSession() as session:
+            for url in self.urls:
+                task = asyncio.ensure_future(
+                    self.bound_fetch(semaphore, url, session))
+                tasks.append(task)
+
+            await asyncio.gather(*tasks)
+
+    def process(self, data):
         '''
         Add comment bodies to a JSON dict.
 
@@ -100,29 +164,16 @@ class CommentTree:
             data (dict): A JSON represented in a Python dictionary.
         '''
 
-        # A list of URLs to request from
-        urls = []
-
         # The first run is to get the indeces for URLs
-        for key, value in data.items():
-            if key == 'id':
-                urls.append(
-                    f'https://jsonplaceholder.typicode.com/posts/{value}')
+        self.get_urls(self.json_data)
 
-            if key == 'replies':
-                for element in value:
-                    self.add_comments(element)
-
-        self.async_requests(urls)
+        # Fetch URLs asynchronously
+        loop = asyncio.get_event_loop()
+        future = asyncio.ensure_future(self.run())
+        loop.run_until_complete(future)
 
         # The second run is to add comment bodies
-        for key, value in data.copy().items():
-            if key == 'id':
-                data['body'] = self.bodies[value]
-
-            if key == 'replies':
-                for element in value:
-                    self.add_comments(element)
+        self.add_comments(self.json_data)
 
 
 def parse_args():
