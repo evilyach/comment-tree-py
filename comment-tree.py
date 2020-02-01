@@ -27,7 +27,12 @@ class CommentTree:
         '''
 
         self.filename = filename
+
         self.json_data = self.get_json_data(self.filename)
+
+        if self.json_data is None:
+            return
+
         self.bodies = {}
         self.urls = []
 
@@ -106,7 +111,8 @@ class CommentTree:
 
         for key, value in data.copy().items():
             if key == 'id':
-                data['body'] = self.bodies[value]
+                if self.bodies[value]:
+                    data['body'] = self.bodies[value]
 
             if key == 'replies':
                 for element in value:
@@ -124,7 +130,10 @@ class CommentTree:
         '''
         async with session.get(url) as response:
             data = await response.json()
-            self.bodies[data['id']] = data['body']
+            if data:
+                self.bodies[data['id']] = data['body']
+            else:
+                self.bodies[data['id']] = None
 
     async def bound_fetch(self, semaphore, url, session):
         '''
@@ -142,8 +151,10 @@ class CommentTree:
     async def run(self):
         ''' Builds a session which invokes asyncronous calls to fetch data. '''
 
+        semaphore_count = 1000
+
         tasks = []
-        semaphore = asyncio.Semaphore(1000)
+        semaphore = asyncio.Semaphore(semaphore_count)
 
         async with aiohttp.ClientSession() as session:
             for url in self.urls:
